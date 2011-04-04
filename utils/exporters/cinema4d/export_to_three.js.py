@@ -36,9 +36,9 @@ http://www.py4d.com/get-py4d/
 '''
 
 import c4d
-from c4d import documents,UVWTag,storage
+from c4d import documents, UVWTag, storage, plugins, gui, modules, bitmaps, utils
 from c4d.utils import *
-from c4d import symbols as sy, plugins, utils, bitmaps, gui
+''' from c4d import symbols as sy, plugins, utils, bitmaps, gui '''
 import math
 import re
 
@@ -60,7 +60,7 @@ def Export():
     name  = op.GetName()
     classname = clean(name)
     
-    c4dPath = c4d.storage.GeGetC4DPath(sy.C4D_PATH_LIBRARY)
+    c4dPath = c4d.storage.GeGetC4DPath(c4d.C4D_PATH_LIBRARY)
     jsFile = open(c4dPath+'/scripts/Three.js','r')
     js = jsFile.read()
     htmlFile = open(c4dPath+'/scripts/template.html','r')
@@ -75,9 +75,9 @@ def Export():
         c4d.GeSyncMessage(c4d.EVMSG_TIMECHANGED)
         doc.SetTime(doc.GetTime())
         c4d.EventAdd(c4d.EVENT_ANIMATE)
-        SendModelingCommand(command = MCOMMAND_REVERSENORMALS, list = [op], mode = MODIFY_ALL, bc = c4d.BaseContainer(), doc = doc)
+        SendModelingCommand(command = c4d.MCOMMAND_REVERSENORMALS, list = [op], mode = c4d.MODIFY_ALL, bc = c4d.BaseContainer(), doc = doc)
         
-        verts = op.GetPointAll()
+        verts = op.GetAllPoints()
         for v in verts:
             code += '\tv( %.6f, %.6f, %.6f );\n' % (v.x, -v.y, v.z)
         code += '\n'
@@ -103,12 +103,13 @@ def Export():
                 else:
                     code += '\tf4( %d, %d, %d, %d );\n' % (f.a, f.b, f.c, f.d)
             if hasUV:
-                uv = uvw.Get(uvcount);
+                uv = uvw.GetSlow(uvcount);
                 # uvs  += '[Vector('+str(uv[0].x)+','+str(1.0-uv[0].y)+'),Vector('+str(uv[1].x)+','+str(1.0-uv[1].y)+'),Vector('+str(uv[2].x)+','+str(1.0-uv[2].y)+')],'
                 if len(uv) == 4:
-                    code += '\tuv( %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f);\n' % (uv[0].x, uv[0].y, uv[1].x, uv[1].y, uv[2].x, uv[2].y, uv[3].x, uv[3].y)
+                    # {'a': Vector(1, 1, 0), 'c': Vector(0, 0, 0), 'b': Vector(1, 0, 0), 'd': Vector(0, 1, 0)}
+                    code += '\tuv( %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f, %.6f);\n' % (uv['a'].x, uv['a'].y, uv['b'].x, uv['b'].y, uv['b'].x, uv['b'].y, uv['c'].x, uv['c'].y)
                 else:
-                    code += '\tuv( %.6f, %.6f, %.6f, %.6f, %.6f, %.6f);\n' % (uv[0].x, uv[0].y, uv[1].x, uv[1].y, uv[2].x, uv[2].y)
+                    code += '\tuv( %.6f, %.6f, %.6f, %.6f, %.6f, %.6f);\n' % (uv['a'].x, uv['a'].y, uv['b'].x, uv['b'].y, uv['c'].x, uv['c'].y)
                 ncount += 1
                 uvcount += 1
         code +='\n\tthis.computeCentroids();\n\tthis.computeNormals(true);\n'
@@ -119,13 +120,14 @@ def Export():
         for tag in op.GetTags():  
             if(tag.GetType() == 5616): #texture tag
                material = tag.GetMaterial()
-               color = material[sy.MATERIAL_COLOR_COLOR]
+               color = material[c4d.MATERIAL_COLOR_COLOR]
                tag.SetBit(c4d.BIT_ACTIVE)
-               selName = clean(tag[sy.TEXTURETAG_RESTRICTION])
+               selName = clean(tag[c4d.TEXTURETAG_RESTRICTION])
                if len(selName) == 0:    print "*** WARNING! *** Missing selection name for material: " + material.GetName()
                code += '\tscope.colors["'+selName+'"] = '+str(RGBToHTMLColor((color.x*255,color.y*255,color.z*255)))+';\n'
             if tag.GetType() == 5673:  #selection tag
-               # print 'selection: ' + tag.GetName()  
+               print 'selection: ' + tag.GetName()
+               print 'selection object: ' + tag
                sel = tag.GetSelection()
                selName = clean(tag.GetName())
                ids = sel.GetAll(op.GetPointCount())
